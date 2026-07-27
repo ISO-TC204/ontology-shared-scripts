@@ -1,0 +1,39 @@
+name: Validate VERSION
+
+# Required status check for PRs (including from forks).
+# Compares the PR's VERSION to RELEASES on the *base branch of the base repo*
+# (not the possibly polluted RELEASES copy on the fork branch).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  validate-version:
+    name: validate-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch base RELEASES and validate
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_REF"
+          git show "origin/$BASE_REF:RELEASES" > /tmp/RELEASES.base
+          echo "---- base RELEASES (origin/$BASE_REF) ----"
+          cat /tmp/RELEASES.base
+          echo "---- PR VERSION ----"
+          grep -v '^#' VERSION | grep -v '^$' || true
+          SUGGESTED=$(python3 scripts/versioning.py suggest --releases /tmp/RELEASES.base)
+          echo "Suggested next SemVer if you need a bump: $SUGGESTED"
+          python3 scripts/versioning.py validate --releases /tmp/RELEASES.base

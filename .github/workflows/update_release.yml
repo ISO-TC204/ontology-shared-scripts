@@ -1,0 +1,89 @@
+name: Deploy MkDocs site to GitHub Pages with Release Number
+
+# Deploy is invoked three ways:
+#   1. workflow_call — from release-on-merge (GITHUB_TOKEN-created releases do not
+#      trigger other workflows' `on: release` handlers)
+#   2. release created — for manually / PAT-created releases
+#   3. workflow_dispatch — manual redeploy (optional release_tag input)
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Git tag / mike version to deploy (e.g. v0.0.3-alpha.5)"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Git tag / mike version to deploy (leave empty to use UTC timestamp)"
+        required: false
+        type: string
+        default: ""
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y weasyprint
+          pip install mkdocs-material pymdown-extensions
+          pip install mkdocs-git-revision-date-localized-plugin
+          pip install mkdocs-to-pdf
+          pip install mike pymdown-extensions mkdocs-mermaid2-plugin
+          npm install -g @mermaid-js/mermaid-cli
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.release_tag }}" ]; then
+            TAG="${{ inputs.release_tag }}"
+          elif [ -n "${{ github.event.release.tag_name }}" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG=$(date -u +"%Y-%m-%d_%H-%M-%S")
+          fi
+          echo "Resolved RELEASE_TAG=$TAG"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Replace placeholders in files
+        run: |
+          RELEASE_TAG="${{ env.RELEASE_TAG }}"
+          sed -i "s/{{ release_number }}/$RELEASE_TAG/g" mkdocs.yml
+          if [ -f docs/index.md ]; then
+            sed -i "s/{{ release_number }}/$RELEASE_TAG/g" docs/index.md
+          fi
+
+      - name: Set EXPORT_PDF environment variable
+        run: echo "EXPORT_PDF=1" >> "$GITHUB_ENV"
+
+      - name: Build and deploy site with mike
+        run: |
+          RELEASE_TAG="${{ env.RELEASE_TAG }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mike set-default --push latest --allow-undefined
+          mike deploy --branch=gh-pages --push --update-aliases "$RELEASE_TAG" latest

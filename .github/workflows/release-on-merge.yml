@@ -1,0 +1,101 @@
+name: Apply VERSION and publish release
+
+# After merge to main: stamp docs/**/*.ttl that already have owl:versionInfo
+# (ontology releases), append RELEASES, commit if needed, create a GitHub
+# Release/tag, then deploy the site.
+#
+# NOTE: Releases created with GITHUB_TOKEN do not trigger other workflows'
+# `on: release` handlers. Deploy is therefore invoked via workflow_call.
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    name: apply-and-release
+    # Never run release automation on forks — that pollutes fork main with
+    # bot VERSION/RELEASES commits (alpha.5/alpha.6, etc.) ahead of upstream.
+    if: github.repository_owner == 'ISO-TC204'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.apply.outputs.tag }}
+      publish: ${{ steps.apply.outputs.publish }}
+      kind: ${{ steps.apply.outputs.kind }}
+      version: ${{ steps.apply.outputs.version }}
+      prerelease: ${{ steps.apply.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Apply VERSION (stamp TTL / append RELEASES)
+        id: apply
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          TAGS=$(git tag -l | paste -sd, -)
+          python3 scripts/versioning.py apply --existing-tags "$TAGS" | tee /tmp/version-apply.out
+          # Mirror outputs in the shell so step outputs are reliable
+          grep -E '^(kind|version|tag|prerelease|changed|publish)=' /tmp/version-apply.out >> "$GITHUB_OUTPUT"
+
+      - name: Commit stamped metadata
+        id: commit
+        if: steps.apply.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # RELEASES plus whatever docs/**/*.ttl the stamp step actually modified
+          git add RELEASES
+          git add -u -- docs/
+          if git diff --staged --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "No additional file changes to commit"
+          else
+            git commit -m "chore(release): ${{ steps.apply.outputs.tag }} metadata"
+            git push
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.apply.outputs.publish == 'true' && steps.apply.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.apply.outputs.tag }}
+          KIND: ${{ steps.apply.outputs.kind }}
+          VERSION: ${{ steps.apply.outputs.version }}
+          PRERELEASE: ${{ steps.apply.outputs.prerelease }}
+          TARGET: ${{ steps.commit.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists"
+            exit 0
+          fi
+          ARGS=( "$TAG" --title "$TAG" --target "$TARGET" --generate-notes )
+          if [ "$PRERELEASE" = "true" ]; then
+            ARGS+=( --prerelease )
+          fi
+          ARGS+=( --notes "Automated release from VERSION (${KIND} ${VERSION})." )
+          gh release create "${ARGS[@]}"
+          echo "Created GitHub Release $TAG"
+
+  deploy:
+    name: deploy-site
+    needs: release
+    if: needs.release.outputs.publish == 'true' && needs.release.outputs.tag != ''
+    uses: ./.github/workflows/update_release.yml
+    with:
+      release_tag: ${{ needs.release.outputs.tag }}
+    secrets: inherit
