@@ -1,27 +1,56 @@
 name: Apply VERSION and publish release
 
-# After merge to main: stamp docs/**/*.ttl that already have owl:versionInfo
-# (ontology releases), append RELEASES, commit if needed, create a GitHub
-# Release/tag, then deploy the site.
+# Callable only. From an ontology repo:
 #
-# NOTE: Releases created with GITHUB_TOKEN do not trigger other workflows'
-# `on: release` handlers. Deploy is therefore invoked via workflow_call.
+#   on:
+#     push:
+#       branches: [main, master]
+#   jobs:
+#     release:
+#       if: ${{ !github.event.repository.fork }}
+#       uses: <owner>/ontology-shared-scripts/.github/workflows/release-on-merge.yml@<ref>
+#       secrets: inherit
+#     deploy:
+#       needs: release
+#       if: needs.release.outputs.publish == 'true' && needs.release.outputs.tag != ''
+#       uses: <owner>/ontology-shared-scripts/.github/workflows/update_release.yml@<ref>
+#       with:
+#         release_tag: ${{ needs.release.outputs.tag }}
+#       secrets: inherit
+#
+# Stamps docs/**/*.ttl that already have owl:versionInfo, appends RELEASES,
+# commits if needed, and creates a GitHub Release/tag.
+# Deploy is a separate callable workflow so callers can chain it (nested
+# relative uses: ./ would resolve against the caller repo, not this one).
 
 on:
-  push:
-    branches: [main, master]
-  workflow_dispatch:
+  workflow_call:
+    outputs:
+      tag:
+        description: "Git tag for this release"
+        value: ${{ jobs.release.outputs.tag }}
+      publish:
+        description: "Whether a GitHub Release should be / was published"
+        value: ${{ jobs.release.outputs.publish }}
+      kind:
+        description: "ontology or doc-only"
+        value: ${{ jobs.release.outputs.kind }}
+      version:
+        description: "SemVer from VERSION"
+        value: ${{ jobs.release.outputs.version }}
+      prerelease:
+        description: "true if ontology pre-release"
+        value: ${{ jobs.release.outputs.prerelease }}
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   release:
     name: apply-and-release
     # Never run release automation on forks — that pollutes fork main with
-    # bot VERSION/RELEASES commits (alpha.5/alpha.6, etc.) ahead of upstream.
-    if: github.repository_owner == 'ISO-TC204'
+    # bot VERSION/RELEASES commits ahead of upstream.
+    if: ${{ !github.event.repository.fork }}
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.apply.outputs.tag }}
@@ -30,10 +59,28 @@ jobs:
       version: ${{ steps.apply.outputs.version }}
       prerelease: ${{ steps.apply.outputs.prerelease }}
     steps:
-      - name: Checkout
+      - name: Checkout caller repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Resolve shared scripts source
+        id: shared
+        run: |
+          set -euo pipefail
+          # github.workflow_ref: owner/repo/.github/workflows/file.yml@ref
+          REF='${{ github.workflow_ref }}'
+          echo "repo=${REF%%/.github/*}" >> "$GITHUB_OUTPUT"
+          echo "ref=${REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout shared scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.shared.outputs.repo }}
+          ref: ${{ steps.shared.outputs.ref }}
+          path: .ontology-shared-scripts
+          sparse-checkout: |
+            scripts
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,9 +93,10 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
           TAGS=$(git tag -l | paste -sd, -)
-          python3 scripts/versioning.py apply --existing-tags "$TAGS" | tee /tmp/version-apply.out
-          # Mirror outputs in the shell so step outputs are reliable
-          grep -E '^(kind|version|tag|prerelease|changed|publish)=' /tmp/version-apply.out >> "$GITHUB_OUTPUT"
+          python3 .ontology-shared-scripts/scripts/versioning.py apply \
+            --existing-tags "$TAGS" | tee /tmp/version-apply.out
+          grep -E '^(kind|version|tag|prerelease|changed|publish)=' \
+            /tmp/version-apply.out >> "$GITHUB_OUTPUT"
 
       - name: Commit stamped metadata
         id: commit
@@ -90,12 +138,3 @@ jobs:
           ARGS+=( --notes "Automated release from VERSION (${KIND} ${VERSION})." )
           gh release create "${ARGS[@]}"
           echo "Created GitHub Release $TAG"
-
-  deploy:
-    name: deploy-site
-    needs: release
-    if: needs.release.outputs.publish == 'true' && needs.release.outputs.tag != ''
-    uses: ./.github/workflows/update_release.yml
-    with:
-      release_tag: ${{ needs.release.outputs.tag }}
-    secrets: inherit

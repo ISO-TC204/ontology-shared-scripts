@@ -1,27 +1,21 @@
-name: Deploy MkDocs site to GitHub Pages with Release Number
+name: Deploy MkDocs site to GitHub Pages
 
-# Deploy is invoked three ways:
-#   1. workflow_call — from release-on-merge (GITHUB_TOKEN-created releases do not
-#      trigger other workflows' `on: release` handlers)
-#   2. release created — for manually / PAT-created releases
-#   3. workflow_dispatch — manual redeploy (optional release_tag input)
+# Callable only. From an ontology repo (often chained after release-on-merge):
+#
+#   jobs:
+#     deploy:
+#       uses: <owner>/ontology-shared-scripts/.github/workflows/update_release.yml@<ref>
+#       with:
+#         release_tag: v1.2.3
+#       secrets: inherit
 
 on:
   workflow_call:
     inputs:
       release_tag:
-        description: "Git tag / mike version to deploy (e.g. v0.0.3-alpha.5)"
+        description: "Git tag / mike version to deploy (e.g. v1.2.3)"
         required: true
         type: string
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Git tag / mike version to deploy (leave empty to use UTC timestamp)"
-        required: false
-        type: string
-        default: ""
-  release:
-    types: [created]
 
 permissions:
   contents: write
@@ -31,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout caller repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -55,14 +49,10 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          if [ -n "${{ inputs.release_tag }}" ]; then
-            TAG="${{ inputs.release_tag }}"
-          elif [ -n "${{ github.event.release.tag_name }}" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-          elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            TAG="${{ github.event.inputs.release_tag }}"
-          else
-            TAG=$(date -u +"%Y-%m-%d_%H-%M-%S")
+          TAG="${{ inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            echo "release_tag input is required" >&2
+            exit 1
           fi
           echo "Resolved RELEASE_TAG=$TAG"
           echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"

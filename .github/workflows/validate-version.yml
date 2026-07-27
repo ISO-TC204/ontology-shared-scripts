@@ -1,22 +1,55 @@
 name: Validate VERSION
 
-# Required status check for PRs (including from forks).
-# Compares the PR's VERSION to RELEASES on the *base branch of the base repo*
-# (not the possibly polluted RELEASES copy on the fork branch).
+# Callable only. From an ontology repo:
+#
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, reopened, ready_for_review]
+#   jobs:
+#     validate-version:
+#       uses: <owner>/ontology-shared-scripts/.github/workflows/validate-version.yml@<ref>
+#
+# Compares the PR's VERSION to RELEASES on the base branch of the base repo
+# (not a possibly polluted RELEASES copy on a fork branch).
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
+    inputs:
+      base_ref:
+        description: "Base branch to read RELEASES from (default: github.base_ref)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
 
 jobs:
   validate-version:
     name: validate-version
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR
+      - name: Checkout caller repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Resolve shared scripts source
+        id: shared
+        run: |
+          set -euo pipefail
+          REF='${{ github.workflow_ref }}'
+          echo "repo=${REF%%/.github/*}" >> "$GITHUB_OUTPUT"
+          echo "ref=${REF##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout shared scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.shared.outputs.repo }}
+          ref: ${{ steps.shared.outputs.ref }}
+          path: .ontology-shared-scripts
+          sparse-checkout: |
+            scripts
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -25,15 +58,23 @@ jobs:
 
       - name: Fetch base RELEASES and validate
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF_INPUT: ${{ inputs.base_ref }}
+          BASE_REF_GITHUB: ${{ github.base_ref }}
         run: |
           set -euo pipefail
+          BASE_REF="${BASE_REF_INPUT:-$BASE_REF_GITHUB}"
+          if [ -z "$BASE_REF" ]; then
+            echo "base_ref is required (pass inputs.base_ref or call from a pull_request event)" >&2
+            exit 1
+          fi
           git fetch --no-tags origin "$BASE_REF"
           git show "origin/$BASE_REF:RELEASES" > /tmp/RELEASES.base
           echo "---- base RELEASES (origin/$BASE_REF) ----"
           cat /tmp/RELEASES.base
           echo "---- PR VERSION ----"
           grep -v '^#' VERSION | grep -v '^$' || true
-          SUGGESTED=$(python3 scripts/versioning.py suggest --releases /tmp/RELEASES.base)
+          SUGGESTED=$(python3 .ontology-shared-scripts/scripts/versioning.py suggest \
+            --releases /tmp/RELEASES.base)
           echo "Suggested next SemVer if you need a bump: $SUGGESTED"
-          python3 scripts/versioning.py validate --releases /tmp/RELEASES.base
+          python3 .ontology-shared-scripts/scripts/versioning.py validate \
+            --releases /tmp/RELEASES.base
