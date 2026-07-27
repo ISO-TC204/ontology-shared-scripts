@@ -1,8 +1,21 @@
-name: Auto Assign PR on `.take` with Triage Check
+name: Auto Assign on `.take` with Triage Check
+
+# Callable only. From an ontology repo:
+#
+#   on:
+#     issue_comment:
+#       types: [created]
+#   jobs:
+#     assign:
+#       if: github.event.comment.body == '.take'
+#       uses: <owner>/ontology-shared-scripts/.github/workflows/auto_assign.yml@<ref>
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_call:
+
+permissions:
+  issues: write
+  pull-requests: write
 
 jobs:
   assign:
@@ -35,7 +48,6 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const { context, github } = require('@actions/github');
             const issue_number = context.payload.issue.number;
             const commenter = context.payload.comment.user.login;
             await github.rest.issues.addAssignees({

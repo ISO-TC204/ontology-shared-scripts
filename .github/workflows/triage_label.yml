@@ -1,8 +1,19 @@
 name: Label issues with "triage needed"
 
+# Callable only. From an ontology repo:
+#
+#   on:
+#     issues:
+#       types: [opened]
+#   jobs:
+#     triage:
+#       uses: <owner>/ontology-shared-scripts/.github/workflows/triage_label.yml@<ref>
+
 on:
-  issues:
-    types: [opened]
+  workflow_call:
+
+permissions:
+  issues: write
 
 jobs:
   triage:
