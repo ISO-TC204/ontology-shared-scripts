@@ -578,14 +578,17 @@ def already_recorded(vf: VersionFile, records: list[ReleaseRecord]) -> bool:
     return False
 
 
-def choose_doc_tag(doc_date: dt.date, existing_tags: Iterable[str]) -> str:
-    """docs-YYYY-MM-DD, or docs-YYYY-MM-DDTHHMMSSZ if the date tag already exists."""
+def choose_doc_tag(
+    version: str, doc_date: dt.date, existing_tags: Iterable[str]
+) -> str:
+    """vX.Y.Z-docs-YYYY-MM-DD (Mike-friendly), with UTC time if that tag exists."""
     tags = set(existing_tags)
-    base = f"docs-{doc_date.isoformat()}"
+    ver = ontology_tag(version)
+    base = f"{ver}-docs-{doc_date.isoformat()}"
     if base not in tags:
         return base
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-    return f"docs-{stamp}"
+    return f"{ver}-docs-{stamp}"
 
 
 def ontology_tag(version: str) -> str:
@@ -617,7 +620,7 @@ def cmd_suggest(args: argparse.Namespace) -> int:
 def _tag_for(vf: VersionFile, existing_tags: Iterable[str]) -> str:
     if vf.is_doc_only:
         assert vf.doc_only is not None
-        return choose_doc_tag(vf.doc_only, existing_tags)
+        return choose_doc_tag(vf.version, vf.doc_only, existing_tags)
     return ontology_tag(vf.version)
 
 
@@ -693,7 +696,7 @@ def cmd_print_tag(args: argparse.Namespace) -> int:
         existing = [
             t.strip() for t in (args.existing_tags or "").split(",") if t.strip()
         ]
-        print(choose_doc_tag(vf.doc_only, existing))
+        print(choose_doc_tag(vf.version, vf.doc_only, existing))
     else:
         print(ontology_tag(vf.version))
     return 0
@@ -733,7 +736,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_apply.add_argument(
         "--existing-tags",
         default="",
-        help="Comma-separated existing git tags (for docs- tag collision)",
+        help="Comma-separated existing git tags (for v*-docs-* tag collision)",
     )
     p_apply.set_defaults(func=cmd_apply)
 
