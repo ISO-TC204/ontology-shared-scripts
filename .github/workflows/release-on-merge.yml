@@ -68,14 +68,14 @@ jobs:
         id: shared
         run: |
           set -euo pipefail
-          # github.workflow_ref is often the *caller* workflow for reusable
-          # workflow_call jobs. Only trust it when it points at this repo.
+          # Always use the canonical ISO-TC204 repo — never the caller/fork owner.
+          # github.workflow_ref is often the *caller* workflow for reusable jobs;
+          # only use it to pick the ref when it names this canonical repo.
           REF='${{ github.workflow_ref }}'
-          if [[ "$REF" == *"/ontology-shared-scripts/"* ]]; then
-            echo "repo=${REF%%/.github/*}" >> "$GITHUB_OUTPUT"
+          echo "repo=ISO-TC204/ontology-shared-scripts" >> "$GITHUB_OUTPUT"
+          if [[ "$REF" == ISO-TC204/ontology-shared-scripts/* ]]; then
             echo "ref=${REF##*@}" >> "$GITHUB_OUTPUT"
           else
-            echo "repo=${{ github.repository_owner }}/ontology-shared-scripts" >> "$GITHUB_OUTPUT"
             echo "ref=main" >> "$GITHUB_OUTPUT"
           fi
 
