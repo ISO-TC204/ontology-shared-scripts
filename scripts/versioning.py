@@ -176,7 +176,7 @@ def _normalize_ontology_ns(ns: str) -> str:
 
 
 def ontology_ns_from_ttl(text: str) -> str:
-    """Derive ontology namespace from vann:preferredNamespaceUri or owl:Ontology IRI."""
+    """Derive ontology namespace from vann:preferredNamespaceUri, owl:Ontology IRI, BASE, or default PREFIX."""
     m = re.search(
         r'^\s*vann:preferredNamespaceUri\s+(?:"([^"]+)"|<([^>]+)>)',
         text,
@@ -192,9 +192,26 @@ def ontology_ns_from_ttl(text: str) -> str:
     if m:
         return _normalize_ontology_ns(m.group(1))
 
+    # Common RITSO style: BASE / default PREFIX declare the topic-area namespace.
+    m = re.search(
+        r"^(?:BASE|@base)\s+<(https?://[^>\s]+)>\s*\.?\s*$",
+        text,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+    if m:
+        return _normalize_ontology_ns(m.group(1))
+
+    m = re.search(
+        r"^(?:PREFIX|@prefix)\s+:\s+<(https?://[^>\s]+)>\s*\.?\s*$",
+        text,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+    if m:
+        return _normalize_ontology_ns(m.group(1))
+
     raise ValueError(
-        "Could not derive ontology namespace from vann:preferredNamespaceUri "
-        "or owl:Ontology IRI"
+        "Could not derive ontology namespace from vann:preferredNamespaceUri, "
+        "owl:Ontology IRI, BASE, or PREFIX :"
     )
 
 
