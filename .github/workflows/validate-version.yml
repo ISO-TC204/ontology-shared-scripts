@@ -75,7 +75,13 @@ jobs:
             exit 1
           fi
           git fetch --no-tags origin "$BASE_REF"
-          git show "origin/$BASE_REF:RELEASES" > /tmp/RELEASES.base
+          # First-time adoption: base may not have RELEASES yet.
+          if git cat-file -e "origin/$BASE_REF:RELEASES" 2>/dev/null; then
+            git show "origin/$BASE_REF:RELEASES" > /tmp/RELEASES.base
+          else
+            echo "Note: origin/$BASE_REF has no RELEASES yet; treating base history as empty."
+            : > /tmp/RELEASES.base
+          fi
           echo "---- base RELEASES (origin/$BASE_REF) ----"
           cat /tmp/RELEASES.base
           echo "---- PR VERSION ----"
