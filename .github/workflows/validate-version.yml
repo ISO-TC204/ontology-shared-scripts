@@ -38,9 +38,16 @@ jobs:
         id: shared
         run: |
           set -euo pipefail
+          # github.workflow_ref is often the *caller* workflow for reusable
+          # workflow_call jobs. Only trust it when it points at this repo.
           REF='${{ github.workflow_ref }}'
-          echo "repo=${REF%%/.github/*}" >> "$GITHUB_OUTPUT"
-          echo "ref=${REF##*@}" >> "$GITHUB_OUTPUT"
+          if [[ "$REF" == *"/ontology-shared-scripts/"* ]]; then
+            echo "repo=${REF%%/.github/*}" >> "$GITHUB_OUTPUT"
+            echo "ref=${REF##*@}" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=${{ github.repository_owner }}/ontology-shared-scripts" >> "$GITHUB_OUTPUT"
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout shared scripts
         uses: actions/checkout@v4

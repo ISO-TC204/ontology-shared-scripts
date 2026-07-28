@@ -28,7 +28,20 @@ from functools import total_ordering
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
-ROOT = Path(__file__).resolve().parents[1]
+def _repo_root() -> Path:
+    """Ontology repository root (VERSION, RELEASES, docs/).
+
+    In GitHub Actions the script is checked out under
+    ``.ontology-shared-scripts/scripts/``; ontology files live at
+    ``GITHUB_WORKSPACE``. Locally the script usually lives at ``<repo>/scripts/``.
+    """
+    ws = os.environ.get("GITHUB_WORKSPACE")
+    if ws:
+        return Path(ws)
+    return Path(__file__).resolve().parents[1]
+
+
+ROOT = _repo_root()
 VERSION_PATH = ROOT / "VERSION"
 RELEASES_PATH = ROOT / "RELEASES"
 DOCS_DIR = ROOT / "docs"
