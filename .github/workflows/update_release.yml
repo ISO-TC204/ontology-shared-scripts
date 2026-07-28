@@ -30,6 +30,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve shared scripts source
+        id: shared
+        run: |
+          set -euo pipefail
+          REF='${{ github.workflow_ref }}'
+          echo "repo=ISO-TC204/ontology-shared-scripts" >> "$GITHUB_OUTPUT"
+          if [[ "$REF" == ISO-TC204/ontology-shared-scripts/* ]]; then
+            echo "ref=${REF##*@}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout shared scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.shared.outputs.repo }}
+          ref: ${{ steps.shared.outputs.ref }}
+          path: .ontology-shared-scripts
+
+      - name: Apply common files from shared
+        env:
+          SHARED_SCRIPTS_DIR: ${{ github.workspace }}/.ontology-shared-scripts
+        run: |
+          set -euo pipefail
+          mkdir -p scripts
+          cp .ontology-shared-scripts/scripts/sync-common.sh scripts/sync-common.sh
+          chmod +x scripts/sync-common.sh
+          bash scripts/sync-common.sh apply
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -62,6 +91,9 @@ jobs:
         run: |
           RELEASE_TAG="${{ env.RELEASE_TAG }}"
           sed -i "s/{{ release_number }}/$RELEASE_TAG/g" mkdocs.yml
+          if [ -f mkdocs.common.yml ]; then
+            sed -i "s/{{ release_number }}/$RELEASE_TAG/g" mkdocs.common.yml
+          fi
           if [ -f docs/index.md ]; then
             sed -i "s/{{ release_number }}/$RELEASE_TAG/g" docs/index.md
           fi

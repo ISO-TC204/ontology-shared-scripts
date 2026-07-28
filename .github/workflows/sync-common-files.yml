@@ -1,0 +1,64 @@
+name: Sync common files
+
+# Callable only. From an ontology repo:
+#
+#   on:
+#     pull_request:
+#     workflow_dispatch:
+#   jobs:
+#     sync-common-files:
+#       uses: ISO-TC204/ontology-shared-scripts/.github/workflows/sync-common-files.yml@main
+#       with:
+#         mode: check   # or apply (writes working tree; pair with a commit step locally)
+#
+# Compares (or copies) files listed in common/MANIFEST from this shared repo.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "check (fail on drift) or apply (overwrite consumer copies)"
+        required: false
+        type: string
+        default: check
+      shared_ref:
+        description: "Git ref of ontology-shared-scripts to compare/copy from"
+        required: false
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  sync-common-files:
+    name: sync-common-files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout shared scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ISO-TC204/ontology-shared-scripts
+          ref: ${{ inputs.shared_ref }}
+          path: .ontology-shared-scripts
+
+      - name: Ensure sync script is available
+        run: |
+          set -euo pipefail
+          mkdir -p scripts
+          cp .ontology-shared-scripts/scripts/sync-common.sh scripts/sync-common.sh
+          chmod +x scripts/sync-common.sh
+
+      - name: Sync common files (${{ inputs.mode }})
+        env:
+          SHARED_SCRIPTS_DIR: ${{ github.workspace }}/.ontology-shared-scripts
+        run: bash scripts/sync-common.sh ${{ inputs.mode }}
+
+      - name: Show diff if apply mode
+        if: inputs.mode == 'apply'
+        run: |
+          git status --short
+          git diff --stat || true
