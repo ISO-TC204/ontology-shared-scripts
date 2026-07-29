@@ -1,3 +1,4 @@
+.DS_Store
 site/
 venv/
 __pycache__/
@@ -7,3 +8,6 @@ __pycache__/
 .ontology-shared-scripts/
 *.pyc
 ~/
+.cursor/
+.vscode/
+docs/catalog-v001.xml
