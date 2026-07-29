@@ -27,9 +27,11 @@ jobs:
 Canonical copies live under `common/` (plus `scripts/versioning.py` and
 `scripts/sync-common.sh`). The map is `common/MANIFEST`.
 
-From an ontology checkout:
+Always run from the **ontology repo root** (not from this shared-scripts tree):
 
 ```bash
+cd /path/to/ontology-its-location
+
 # overwrite local copies from shared @main
 bash scripts/sync-common.sh apply
 
@@ -39,6 +41,15 @@ bash scripts/sync-common.sh apply /path/to/ontology-shared-scripts
 # CI / pre-PR drift check
 bash scripts/sync-common.sh check
 ```
+
+If you invoke the script that lives *inside* `ontology-shared-scripts`, set the consumer explicitly:
+
+```bash
+CONSUMER_ROOT=/path/to/ontology-its-location \
+  bash /path/to/ontology-shared-scripts/scripts/sync-common.sh check
+```
+
+The script refuses to treat `ontology-shared-scripts` itself as the consumer.
 
 Caller workflow:
 
