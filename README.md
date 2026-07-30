@@ -9,18 +9,23 @@ repo chrome stay consistent.
 |------|---------|
 | `scripts/versioning.py` | VERSION / RELEASES validation and suggestions |
 | `scripts/sync-common.sh` | Copy or check common files into an ontology repo |
-| `common/` | Policy, docs chrome, MkDocs defaults, Cursor shared rules |
-| `.github/workflows/` | Reusable workflows (`validate-version`, release, deploy, sync, …) |
+| `common/` | Policy, docs chrome, MkDocs defaults, Cursor shared rules, thin workflow callers |
+| `.github/workflows/` | Reusable workflows (`workflow_call` only) |
 
 ## Using reusable workflows
 
-Ontology repos keep thin callers, for example:
+Canonical **thin callers** live under `common/.github/workflows/` and sync into
+each ontology repo via `MANIFEST`. They invoke the reusable workflows here, for
+example:
 
 ```yaml
 jobs:
   validate-version:
     uses: ISO-TC204/ontology-shared-scripts/.github/workflows/validate-version.yml@main
 ```
+
+Edit callers in `common/.github/workflows/`, not in individual ontology repos
+(except temporarily before the next sync).
 
 ## Syncing common files
 
@@ -51,19 +56,9 @@ CONSUMER_ROOT=/path/to/ontology-its-location \
 
 The script refuses to treat `ontology-shared-scripts` itself as the consumer.
 
-Caller workflow:
-
-```yaml
-name: Sync common files
-on:
-  pull_request:
-  workflow_dispatch:
-jobs:
-  sync-common-files:
-    uses: ISO-TC204/ontology-shared-scripts/.github/workflows/sync-common-files.yml@main
-    with:
-      mode: check
-```
+The sync CI caller (`common/.github/workflows/sync-common-files.yml`) calls the
+reusable workflow, which always copies `scripts/sync-common.sh` from this repo
+before running — so check/apply does not depend on an already-synced script.
 
 ### Per-repo files (not synced)
 
@@ -72,7 +67,6 @@ Keep these local to each ontology:
 - Ontology / SHACL Turtle under `docs/`
 - `VERSION`, `RELEASES`, project `README.md`
 - Identity `mkdocs.yml` (`INHERIT: mkdocs.common.yml` + site_name / urls / nav)
-- Thin `.github/workflows/*` callers
 - `.cursor/rules.md` specialty overlay (shared body is `.cursor/rules-common.md`)
 
 ## MkDocs
