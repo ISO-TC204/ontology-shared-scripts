@@ -2,18 +2,24 @@
 # Format: <source-relative-to-shared-root>|<dest-relative-to-consumer-root>
 # Lines starting with # are ignored. Blank lines are ignored.
 
-common/CODE_OF_CONDUCT.md|CODE_OF_CONDUCT.md
-common/LICENSE.md|LICENSE.md
-common/CONTRIBUTING.md|CONTRIBUTING.md
-common/.gitignore|.gitignore
-common/.markdownlint.json|.markdownlint.json
 common/.github/CODEOWNERS|.github/CODEOWNERS
 common/.github/PULL_REQUEST_TEMPLATE.md|.github/PULL_REQUEST_TEMPLATE.md
+common/.github/workflows/auto_assign.yml|.github/workflows/auto_assign.yml
+common/.github/workflows/release-on-merge.yml|.github/workflows/release-on-merge.yml
+common/.github/workflows/sync-common-files.yml|.github/workflows/sync-common-files.yml
+common/.github/workflows/triage_label.yml|.github/workflows/triage_label.yml
+common/.github/workflows/update_release.yml|.github/workflows/update_release.yml
+common/.github/workflows/validate-version.yml|.github/workflows/validate-version.yml
 common/.vscode/settings.json|.vscode/settings.json
 common/.cursor/rules-common.md|.cursor/rules-common.md
 common/docs/stylesheets/extra.css|docs/stylesheets/extra.css
 common/docs/stylesheets/pdf.css|docs/stylesheets/pdf.css
 common/docs/javascripts/tablesort.js|docs/javascripts/tablesort.js
+common/CODE_OF_CONDUCT.md|CODE_OF_CONDUCT.md
+common/LICENSE.md|LICENSE.md
+common/CONTRIBUTING.md|CONTRIBUTING.md
+common/.gitignore|.gitignore
+common/.markdownlint.json|.markdownlint.json
 common/top-nav.yml|top-nav.yml
 common/mkdocs.common.yml|mkdocs.common.yml
 scripts/versioning.py|scripts/versioning.py
