@@ -8,6 +8,4 @@ __pycache__/
 .ontology-shared-scripts/
 *.pyc
 ~/
-.cursor/
-.vscode/
 docs/catalog-v001.xml
